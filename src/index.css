@@ -279,6 +279,30 @@ a {
   text-align: center;
 }
 
+.about-links {
+  position: fixed;
+  bottom: 8px;
+  left: 8px;
+  z-index: 200;
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  pointer-events: auto;
+}
+.about-links a {
+  color: var(--fg-dim);
+  text-decoration: none;
+  padding: 4px 9px;
+  background: rgba(20, 20, 28, 0.75);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+}
+.about-links a:hover {
+  color: var(--fg);
+  border-color: var(--fg-dim);
+}
+
 .warning-banner {
   background: rgba(255, 107, 107, 0.15);
   color: var(--danger);
