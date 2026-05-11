@@ -1,0 +1,42 @@
+{
+  "name": "pockettalkie",
+  "version": "0.2.0",
+  "description": "Encrypted push-to-talk rooms over a self-hosted WebRTC mesh. GitHub-Pages-only, no backend.",
+  "type": "module",
+  "private": false,
+  "homepage": "https://baditaflorin.github.io/pockettalkie/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/baditaflorin/pockettalkie.git"
+  },
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build && cp docs/index.html docs/404.html",
+    "preview": "vite preview --host 0.0.0.0",
+    "fmt": "prettier --write .",
+    "fmt:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "smoke": "bash scripts/smoke.sh",
+    "prepare": "husky || true"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "jsqr": "^1.4.0",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.6",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "husky": "^9.1.7",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3",
+    "vite": "^6.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
