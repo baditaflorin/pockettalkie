@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+npm run test
 npm run build
 
 if [ ! -f docs/index.html ]; then

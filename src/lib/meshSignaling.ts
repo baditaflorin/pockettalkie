@@ -9,6 +9,19 @@
 
 import { fetchIceServers, loadSignalingUrl, type TurnState } from "./turnConfig";
 
+// How often we re-announce "hello" while the socket is open. A one-shot
+// hello can be lost to a subscribe race (we publish before the other side's
+// `subscribe` has landed on the signaling server) or any transient hiccup;
+// without a retry the two peers can sit in the same room forever without
+// ever finding each other. Re-announcing is safe: `ensurePeer` is a no-op
+// for a peer we already have.
+const HELLO_INTERVAL_MS = 4_000;
+
+// How many times we attempt an ICE restart on a failed connection (as the
+// original offerer) before giving up and dropping the peer. A transient
+// network blip shouldn't permanently end the call.
+const MAX_ICE_RESTART_ATTEMPTS = 3;
+
 type Json = unknown;
 
 type WireMsg =
@@ -69,6 +82,9 @@ export class Mesh {
   private dataChannels = new Map<string, RTCDataChannel>();
   private pendingIce = new Map<string, RTCIceCandidateInit[]>();
   private helloTimer: ReturnType<typeof setTimeout> | null = null;
+  private helloIntervalTimer: ReturnType<typeof setInterval> | null = null;
+  private initiatorOf = new Map<string, boolean>();
+  private restartAttempts = new Map<string, number>();
 
   constructor(opts: MeshOptions) {
     this.opts = opts;
@@ -89,6 +105,7 @@ export class Mesh {
   destroy() {
     this.destroyed = true;
     if (this.helloTimer) clearTimeout(this.helloTimer);
+    if (this.helloIntervalTimer) clearInterval(this.helloIntervalTimer);
     if (this.pingTimer) clearInterval(this.pingTimer);
     // Tell remaining peers we're leaving.
     try {
@@ -146,6 +163,11 @@ export class Mesh {
       this.helloTimer = setTimeout(() => {
         this.publish({ kind: "hello", from: this.myId });
       }, 200);
+      // Re-announce periodically so a lost/raced first hello doesn't strand
+      // two peers in the same room forever (see HELLO_INTERVAL_MS above).
+      this.helloIntervalTimer = setInterval(() => {
+        this.publish({ kind: "hello", from: this.myId });
+      }, HELLO_INTERVAL_MS);
       this.pingTimer = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: "ping" } satisfies WireMsg));
@@ -169,6 +191,10 @@ export class Mesh {
       if (this.pingTimer) {
         clearInterval(this.pingTimer);
         this.pingTimer = null;
+      }
+      if (this.helloIntervalTimer) {
+        clearInterval(this.helloIntervalTimer);
+        this.helloIntervalTimer = null;
       }
       this.opts.onEvent({ type: "ws-close", code: ev.code });
       if (this.destroyed) return;
@@ -248,6 +274,7 @@ export class Mesh {
       remoteTalking: false,
     };
     this.peers.set(remoteId, peer);
+    this.initiatorOf.set(remoteId, initiator);
 
     // Add our local audio so the peer receives it when we PTT.
     this.opts.localStream.getAudioTracks().forEach((t) => {
@@ -285,7 +312,29 @@ export class Mesh {
       if (!p) return;
       p.connectionState = pc.connectionState;
       this.opts.onEvent({ type: "peer-state", peer: p });
-      if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+      if (pc.connectionState === "connected") {
+        this.restartAttempts.delete(remoteId);
+        return;
+      }
+      if (pc.connectionState === "failed") {
+        // A transient network blip shouldn't permanently end the call.
+        // Only the original offerer restarts, to avoid both sides racing
+        // competing restart offers.
+        const attempts = this.restartAttempts.get(remoteId) ?? 0;
+        if (this.initiatorOf.get(remoteId) && attempts < MAX_ICE_RESTART_ATTEMPTS) {
+          this.restartAttempts.set(remoteId, attempts + 1);
+          try {
+            pc.restartIce();
+          } catch (err) {
+            console.warn("[mesh] restartIce failed", err);
+          }
+          void this.createOffer(remoteId);
+          return;
+        }
+        this.removePeer(remoteId);
+        return;
+      }
+      if (pc.connectionState === "closed") {
         this.removePeer(remoteId);
       }
     };
@@ -419,6 +468,8 @@ export class Mesh {
     this.peers.delete(id);
     this.dataChannels.delete(id);
     this.pendingIce.delete(id);
+    this.initiatorOf.delete(id);
+    this.restartAttempts.delete(id);
     this.opts.onEvent({ type: "peer-removed", id });
   }
 }

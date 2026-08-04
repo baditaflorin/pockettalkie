@@ -17,12 +17,13 @@
     "fmt": "prettier --write .",
     "fmt:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "smoke": "bash scripts/smoke.sh",
     "prepare": "husky || true"
   },
   "dependencies": {
-    "qrcode": "^1.5.4",
     "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1"
   },
@@ -34,7 +35,8 @@
     "husky": "^9.1.7",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=22"
